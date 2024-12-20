@@ -1,49 +1,79 @@
 import pygame
 import random
+import xml.etree.ElementTree as ET
 
-# Inicializando o Pygame
-pygame.init()
-
-# Configurações da tela
-largura_tela = 600
-altura_tela = 400
-tela = pygame.display.set_mode((largura_tela, altura_tela))
-pygame.display.set_caption("Snake Game")
-
-# Definindo cores
-branco = (255, 255, 255)
-preto = (0, 0, 0)
-vermelho = (255, 0, 0)
-verde = (0, 255, 0)
-
-# Tamanho do bloco (cobra e comida)
+# Configurações iniciais
+largura_tela = 640
+altura_tela = 480
 tamanho_bloco = 20
-velocidade = 10
+preto = (0, 0, 0)
+branco = (255, 255, 255)
+verde = (0, 255, 0)
+vermelho = (255, 0, 0)
 
-# Relógio para controle da velocidade
-relogio = pygame.time.Clock()
+# Função para salvar a pontuação em um arquivo XML
+def salvar_pontuacao(pontuacao_max):
+    """Salva a pontuação no arquivo XML."""
+    try:
+        tree = ET.parse('pontuacao.xml')
+        root = tree.getroot()
+    except FileNotFoundError:
+        root = ET.Element("pontuacoes")
+        tree = ET.ElementTree(root)
 
-# Configurando fontes
-fonte_pontuacao = pygame.font.SysFont("comicsansms", 35)
-fonte_game_over = pygame.font.SysFont("comicsansms", 50)
+    # Encontrar a pontuação mais alta
+    pontuacao_max_elem = root.find("pontuacao_max")
+    
+    # Se não existir, cria o elemento
+    if pontuacao_max_elem is None:
+        pontuacao_max_elem = ET.SubElement(root, "pontuacao_max")
+    
+    # Atualiza a pontuação máxima se a pontuação atual for maior
+    if int(pontuacao_max_elem.text) < pontuacao_max:
+        pontuacao_max_elem.text = str(pontuacao_max)
+    
+    # Salva o arquivo XML
+    tree.write('pontuacao.xml')
 
-def exibir_pontuacao(pontos):
-    """Desenha a pontuação na tela."""
-    texto = fonte_pontuacao.render(f"Pontuação: {pontos}", True, branco)
-    tela.blit(texto, [10, 10])
+# Função para carregar a pontuação de um arquivo XML
+def carregar_pontuacao():
+    """Carrega a pontuação mais alta do arquivo XML."""
+    try:
+        tree = ET.parse('pontuacao.xml')
+        root = tree.getroot()
+        pontuacao_max_elem = root.find("pontuacao_max")
+        return int(pontuacao_max_elem.text) if pontuacao_max_elem is not None else 0
+    except FileNotFoundError:
+        return 0  # Caso o arquivo não exista, retorna 0
 
-def mensagem_game_over(pontuacao):
-    """Exibe a mensagem de Game Over."""
-    tela.fill(preto)
-    texto_game_over = fonte_game_over.render("Game Over", True, vermelho)
-    texto_pontuacao = fonte_pontuacao.render(f"Pontuação final: {pontuacao}", True, branco)
-    texto_reiniciar = fonte_pontuacao.render("Pressione R para Reiniciar ou Q para Sair", True, branco)
-    tela.blit(texto_game_over, [largura_tela // 2 - texto_game_over.get_width() // 2, altura_tela // 4])
-    tela.blit(texto_pontuacao, [largura_tela // 2 - texto_pontuacao.get_width() // 2, altura_tela // 2])
-    tela.blit(texto_reiniciar, [largura_tela // 2 - texto_reiniciar.get_width() // 2, altura_tela // 1.5])
-    pygame.display.update()
+# Função para exibir a pontuação na tela
+def exibir_pontuacao(pontuacao, font, tela):
+    texto_pontuacao = font.render(f"Pontuação: {pontuacao}", True, branco)
+    tela.blit(texto_pontuacao, [10, 10])
 
-def jogo():
+# Função para exibir a pontuação máxima na tela
+def exibir_pontuacao_maxima(pontuacao_max, font, tela):
+    texto_pontuacao_maxima = font.render(f"Pontuação Máxima: {pontuacao_max}", True, branco)
+    tela.blit(texto_pontuacao_maxima, [largura_tela // 2 - 100, 10])
+
+# Função para exibir a mensagem de game over
+def mensagem_game_over(pontuacao, font, tela):
+    texto_game_over = font.render(f"Fim de Jogo! Pontuação Final: {pontuacao}", True, vermelho)
+    tela.blit(texto_game_over, [largura_tela // 4, altura_tela // 3])
+    texto_opcoes = font.render("Pressione 'R' para Recomeçar ou 'Q' para Sair", True, branco)
+    tela.blit(texto_opcoes, [largura_tela // 4, altura_tela // 2])
+
+# Função principal do jogo
+def jogo(pontuacao_max):
+    pygame.init()
+
+    # Configura a tela do jogo
+    tela = pygame.display.set_mode((largura_tela, altura_tela))
+    pygame.display.set_caption('Snake Game')
+
+    # Fonte
+    font = pygame.font.SysFont("arial", 25)
+
     # Posição inicial da cobra
     x = largura_tela // 2
     y = altura_tela // 2
@@ -61,100 +91,102 @@ def jogo():
     # Pontuação inicial
     pontuacao = 0
 
-    # Velocidade inicial dentro do jogo
-    velocidade_atual = velocidade  # Velocidade ajustável
-
     # Flag para encerrar o jogo
     game_over = False
 
+    # Loop principal do jogo
     while not game_over:
-        # Verificar eventos de controle
         for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:  # Verificar se a janela foi fechada
+            if evento.type == pygame.QUIT:
                 pygame.quit()
                 quit()
 
-            if evento.type == pygame.KEYDOWN:  # Movimentos da cobra
-                if evento.key == pygame.K_LEFT and movimento_x == 0:
+            if evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_LEFT:
                     movimento_x = -tamanho_bloco
                     movimento_y = 0
-                elif evento.key == pygame.K_RIGHT and movimento_x == 0:
+                elif evento.key == pygame.K_RIGHT:
                     movimento_x = tamanho_bloco
                     movimento_y = 0
-                elif evento.key == pygame.K_UP and movimento_y == 0:
-                    movimento_x = 0
+                elif evento.key == pygame.K_UP:
                     movimento_y = -tamanho_bloco
-                elif evento.key == pygame.K_DOWN and movimento_y == 0:
                     movimento_x = 0
+                elif evento.key == pygame.K_DOWN:
                     movimento_y = tamanho_bloco
+                    movimento_x = 0
 
-        # Atualizar posição da cobra
+        # Movimento da cobra
         x += movimento_x
         y += movimento_y
 
-        # Verificar colisão com as bordas da tela
+        # Verificar colisão com as bordas
         if x < 0 or x >= largura_tela or y < 0 or y >= altura_tela:
             game_over = True
 
+        # Adicionar nova posição ao corpo da cobra
+        corpo_cobra.append([x, y])
+        if len(corpo_cobra) > comprimento_cobra:
+            del corpo_cobra[0]
+
         # Verificar colisão com o próprio corpo
-        for segmento in corpo_cobra[:-1]:
-            if segmento == [x, y]:
+        for bloco in corpo_cobra[:-1]:
+            if bloco == [x, y]:
                 game_over = True
 
         # Verificar colisão com a comida
         if x == comida_x and y == comida_y:
             comprimento_cobra += 1
-            pontuacao += 10
-
-            # Aumentar a velocidade a cada 50 pontos
-            if pontuacao % 50 == 0:
-                velocidade_atual += 1
-
-            # Reposicionar comida
             comida_x = random.randint(0, (largura_tela // tamanho_bloco) - 1) * tamanho_bloco
             comida_y = random.randint(0, (altura_tela // tamanho_bloco) - 1) * tamanho_bloco
+            pontuacao += 10
 
-        # Preencher o fundo
+        # Atualizar a tela
         tela.fill(preto)
 
-        # Adicionar a nova posição da cabeça ao corpo
-        corpo_cobra.append([x, y])
-
-        # Manter o comprimento correto da cobra
-        if len(corpo_cobra) > comprimento_cobra:
-            del corpo_cobra[0]
+        # Exibir a pontuação e a pontuação máxima
+        exibir_pontuacao(pontuacao, font, tela)
+        exibir_pontuacao_maxima(pontuacao_max, font, tela)
 
         # Desenhar a cobra
-        for segmento in corpo_cobra:
-            pygame.draw.rect(tela, verde, [segmento[0], segmento[1], tamanho_bloco, tamanho_bloco])
+        for bloco in corpo_cobra:
+            pygame.draw.rect(tela, verde, [bloco[0], bloco[1], tamanho_bloco, tamanho_bloco])
 
-        # Desenhar comida
+        # Desenhar a comida
         pygame.draw.rect(tela, vermelho, [comida_x, comida_y, tamanho_bloco, tamanho_bloco])
-
-        # Exibir a pontuação
-        exibir_pontuacao(pontuacao)
 
         # Atualizar a tela
         pygame.display.update()
 
-        # Controlar a velocidade
-        relogio.tick(velocidade_atual)
+        # Controlar o FPS
+        pygame.time.Clock().tick(15)
 
-    # Exibir a tela de Game Over
-    mensagem_game_over(pontuacao)
+        # Verificar se a pontuação atual é maior que a máxima
+        if pontuacao > pontuacao_max:
+            pontuacao_max = pontuacao  # Atualizar pontuação máxima
 
-    # Esperar reinício ou saída do jogo
-    while True:
+    # Mensagem de game over
+    while game_over:
+        tela.fill(preto)
+        mensagem_game_over(pontuacao, font, tela)
+        
+        pygame.display.update()
+
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 quit()
+
             if evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_r:  # Reiniciar o jogo
-                    jogo()
-                elif evento.key == pygame.K_q:  # Sair do jogo
+                if evento.key == pygame.K_r:  # Recomeçar
+                    jogo(pontuacao_max)  # Chama novamente a função jogo() para reiniciar
+                elif evento.key == pygame.K_q:  # Sair
                     pygame.quit()
                     quit()
 
-# Iniciar o jogo
-jogo()
+    # Salvar a pontuação mais alta quando o jogo acabar
+    salvar_pontuacao(pontuacao_max)
+
+# Rodar o jogo
+if __name__ == "__main__":
+    pontuacao_max = carregar_pontuacao()  # Carregar a pontuação máxima ao iniciar o jogo
+    jogo(pontuacao_max)
